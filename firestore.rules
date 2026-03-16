@@ -1,0 +1,146 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId}
+    // Fields:
+    //   - uid: string (required)
+    //   - name: string (required, < 100 chars)
+    //   - email: string (required, valid email)
+    //   - role: string (required, 'admin' or 'teacher')
+    //   - createdAt: timestamp (required, immutable)
+    //
+    // Collection: students
+    // Document ID: {studentId}
+    // Fields:
+    //   - id: string (required)
+    //   - name: string (required, < 100 chars)
+    //   - rollNumber: string (required, < 50 chars)
+    //   - class: string (required, < 50 chars)
+    //   - parentContact: string (optional, < 20 chars)
+    //   - photoUrl: string (optional, < 500 chars)
+    //   - createdAt: timestamp (required, immutable)
+    //   - authorUid: string (required, immutable)
+    //
+    // Collection: attendance
+    // Document ID: {recordId}
+    // Fields:
+    //   - id: string (required)
+    //   - studentId: string (required)
+    //   - date: string (required, YYYY-MM-DD)
+    //   - status: string (required, 'present', 'absent', 'late', 'leave')
+    //   - markedBy: string (required, immutable)
+    //   - timestamp: timestamp (required, immutable)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "jiteshfea000@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string && dateStr.matches("^\\d{4}-\\d{2}-\\d{2}$");
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+    function isValidUser(data) {
+      return hasOnlyAllowedFields(['uid', 'name', 'email', 'role', 'createdAt']) &&
+             hasRequiredFields(['uid', 'name', 'email', 'role', 'createdAt']) &&
+             data.uid is string && data.uid.size() > 0 && data.uid.size() < 100 &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             isValidEmail(data.email) &&
+             data.role in ['admin', 'teacher'] &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidStudent(data) {
+      return hasOnlyAllowedFields(['id', 'name', 'rollNumber', 'class', 'parentContact', 'photoUrl', 'createdAt', 'authorUid']) &&
+             hasRequiredFields(['id', 'name', 'rollNumber', 'class', 'createdAt', 'authorUid']) &&
+             data.id is string && data.id.size() > 0 && data.id.size() < 100 &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.rollNumber is string && data.rollNumber.size() > 0 && data.rollNumber.size() < 50 &&
+             data.class is string && data.class.size() > 0 && data.class.size() < 50 &&
+             (!('parentContact' in data) || (data.parentContact is string && data.parentContact.size() <= 20)) &&
+             (!('photoUrl' in data) || (data.photoUrl is string && data.photoUrl.size() <= 500)) &&
+             data.createdAt is timestamp &&
+             data.authorUid is string && data.authorUid.size() > 0 && data.authorUid.size() < 100;
+    }
+
+    function isValidAttendanceRecord(data) {
+      return hasOnlyAllowedFields(['id', 'studentId', 'date', 'status', 'markedBy', 'timestamp']) &&
+             hasRequiredFields(['id', 'studentId', 'date', 'status', 'markedBy', 'timestamp']) &&
+             data.id is string && data.id.size() > 0 && data.id.size() < 100 &&
+             data.studentId is string && data.studentId.size() > 0 && data.studentId.size() < 100 &&
+             isValidDateString(data.date) &&
+             data.status in ['present', 'absent', 'late', 'leave'] &&
+             data.markedBy is string && data.markedBy.size() > 0 && data.markedBy.size() < 100 &&
+             data.timestamp is timestamp;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidUser(request.resource.data) &&
+                    ((isOwner(userId) && request.resource.data.role == 'teacher') || isAdmin()) &&
+                    request.resource.data.uid == request.auth.uid;
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) &&
+                    ((isOwner(userId) && request.resource.data.role == resource.data.role) || isAdmin()) &&
+                    request.resource.data.uid == resource.data.uid &&
+                    request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if isAdmin();
+    }
+
+    match /students/{studentId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidStudent(request.resource.data) &&
+                    request.resource.data.authorUid == request.auth.uid;
+      allow update: if isAuthenticated() && isValidStudent(request.resource.data) &&
+                    request.resource.data.authorUid == resource.data.authorUid &&
+                    request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if isAdmin() || (isAuthenticated() && resource.data.authorUid == request.auth.uid);
+    }
+
+    match /attendance/{recordId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidAttendanceRecord(request.resource.data) &&
+                    request.resource.data.markedBy == request.auth.uid;
+      allow update: if isAuthenticated() && isValidAttendanceRecord(request.resource.data) &&
+                    request.resource.data.markedBy == resource.data.markedBy;
+      allow delete: if isAdmin() || (isAuthenticated() && resource.data.markedBy == request.auth.uid);
+    }
+  }
+}

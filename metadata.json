@@ -1,0 +1,5 @@
+{
+  "name": "SmartAttend AI",
+  "description": "A modern, premium-quality Student Attendance Management App with AI features, beautiful animations, and strong security.",
+  "requestFramePermissions": ["camera", "microphone", "geolocation"]
+}
