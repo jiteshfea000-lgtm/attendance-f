@@ -27,6 +27,7 @@ export function Attendance() {
   const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [isFaceRecogOpen, setIsFaceRecogOpen] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
+  const [scanSuccess, setScanSuccess] = useState(false);
   const webcamRef = useRef<Webcam>(null);
 
   useEffect(() => {
@@ -104,7 +105,7 @@ export function Attendance() {
     setIsScanning(true);
     setTimeout(() => {
       setIsScanning(false);
-      setIsFaceRecogOpen(false);
+      setScanSuccess(true);
       // Simulate marking a few students present
       if (filteredStudents.length > 0) {
         markAttendance(filteredStudents[0].id, 'present');
@@ -112,7 +113,10 @@ export function Attendance() {
           markAttendance(filteredStudents[1].id, 'present');
         }
       }
-      alert('Face scan complete. Attendance marked for detected students.');
+      setTimeout(() => {
+        setScanSuccess(false);
+        setIsFaceRecogOpen(false);
+      }, 2000);
     }, 3000);
   };
 
@@ -309,7 +313,23 @@ export function Attendance() {
                 </div>
               </div>
 
-              {!isScanning && (
+              {scanSuccess && (
+                <div className="absolute inset-0 flex items-center justify-center bg-emerald-900/80 backdrop-blur-sm z-10">
+                  <motion.div 
+                    initial={{ scale: 0.5, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    className="flex flex-col items-center gap-4 text-white"
+                  >
+                    <div className="w-20 h-20 bg-emerald-500 rounded-full flex items-center justify-center">
+                      <Check size={40} />
+                    </div>
+                    <h3 className="text-2xl font-bold">Scan Complete!</h3>
+                    <p className="text-emerald-100">Attendance marked for detected students.</p>
+                  </motion.div>
+                </div>
+              )}
+
+              {!isScanning && !scanSuccess && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/40">
                   <button 
                     onClick={simulateFaceScan}

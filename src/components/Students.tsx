@@ -16,7 +16,10 @@ export function Students() {
   const [students, setStudents] = useState<Student[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [studentToDelete, setStudentToDelete] = useState<string | null>(null);
   const [newStudent, setNewStudent] = useState({ name: '', rollNumber: '', class: '', parentContact: '' });
+  const [editingStudent, setEditingStudent] = useState<Student | null>(null);
 
   useEffect(() => {
     if (!auth.currentUser) return;
@@ -65,12 +68,49 @@ export function Students() {
     }
   };
 
+  const handleEditStudent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!auth.currentUser || !editingStudent) return;
+
+    try {
+      const docRef = doc(db, 'students', editingStudent.id);
+      const studentData: any = {
+        id: editingStudent.id,
+        name: editingStudent.name,
+        rollNumber: editingStudent.rollNumber,
+        class: editingStudent.class,
+        authorUid: (editingStudent as any).authorUid || auth.currentUser.uid,
+        createdAt: (editingStudent as any).createdAt || serverTimestamp(),
+      };
+      
+      if (editingStudent.parentContact && editingStudent.parentContact.trim() !== '') {
+        studentData.parentContact = editingStudent.parentContact.trim();
+      }
+
+      await setDoc(docRef, studentData, { merge: true });
+      setIsEditModalOpen(false);
+      setEditingStudent(null);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `students/${editingStudent.id}`);
+    }
+  };
+
+  const openEditModal = (student: Student) => {
+    setEditingStudent(student);
+    setIsEditModalOpen(true);
+  };
+
   const handleDelete = async (id: string) => {
-    if (window.confirm('Are you sure you want to delete this student?')) {
+    setStudentToDelete(id);
+  };
+
+  const confirmDelete = async () => {
+    if (studentToDelete) {
       try {
-        await deleteDoc(doc(db, 'students', id));
+        await deleteDoc(doc(db, 'students', studentToDelete));
+        setStudentToDelete(null);
       } catch (error) {
-        handleFirestoreError(error, OperationType.DELETE, `students/${id}`);
+        handleFirestoreError(error, OperationType.DELETE, `students/${studentToDelete}`);
       }
     }
   };
@@ -150,7 +190,10 @@ export function Students() {
                     <td className="p-4 text-slate-600 dark:text-slate-300">{student.parentContact}</td>
                     <td className="p-4 text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <button className="p-2 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                        <button 
+                          onClick={() => openEditModal(student)}
+                          className="p-2 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                        >
                           <Edit2 size={18} />
                         </button>
                         <button 
@@ -248,6 +291,112 @@ export function Students() {
                 </button>
               </div>
             </form>
+          </motion.div>
+        </div>
+      )}
+      {/* Edit Student Modal */}
+      {isEditModalOpen && editingStudent && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <motion.div 
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-md overflow-hidden"
+          >
+            <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white">Edit Student</h2>
+              <button 
+                onClick={() => setIsEditModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                &times;
+              </button>
+            </div>
+            <form onSubmit={handleEditStudent} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Full Name</label>
+                <input 
+                  required
+                  type="text" 
+                  value={editingStudent.name}
+                  onChange={e => setEditingStudent({...editingStudent, name: e.target.value})}
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-xl bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none" 
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Roll Number</label>
+                <input 
+                  required
+                  type="text" 
+                  value={editingStudent.rollNumber}
+                  onChange={e => setEditingStudent({...editingStudent, rollNumber: e.target.value})}
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-xl bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none" 
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Class/Section</label>
+                <input 
+                  required
+                  type="text" 
+                  value={editingStudent.class}
+                  onChange={e => setEditingStudent({...editingStudent, class: e.target.value})}
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-xl bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none" 
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Parent Contact</label>
+                <input 
+                  type="text" 
+                  value={editingStudent.parentContact || ''}
+                  onChange={e => setEditingStudent({...editingStudent, parentContact: e.target.value})}
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-xl bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none" 
+                />
+              </div>
+              <div className="pt-4 flex justify-end gap-3">
+                <button 
+                  type="button"
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit"
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors shadow-sm"
+                >
+                  Update Student
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
+      {/* Delete Confirmation Modal */}
+      {studentToDelete && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <motion.div 
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-sm overflow-hidden p-6 text-center"
+          >
+            <div className="w-16 h-16 bg-rose-100 dark:bg-rose-900/30 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Trash2 size={32} />
+            </div>
+            <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Delete Student?</h2>
+            <p className="text-slate-500 dark:text-slate-400 mb-6">Are you sure you want to delete this student? This action cannot be undone.</p>
+            <div className="flex justify-center gap-3">
+              <button 
+                onClick={() => setStudentToDelete(null)}
+                className="px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={confirmDelete}
+                className="px-4 py-2 bg-rose-600 text-white rounded-xl hover:bg-rose-700 transition-colors shadow-sm"
+              >
+                Delete
+              </button>
+            </div>
           </motion.div>
         </div>
       )}

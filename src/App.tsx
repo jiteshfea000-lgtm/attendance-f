@@ -10,6 +10,7 @@ import { Students } from './components/Students';
 import { Attendance } from './components/Attendance';
 import { Reports } from './components/Reports';
 import { Settings } from './components/Settings';
+import { PinLock } from './components/PinLock';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -28,16 +29,24 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 function AppContent() {
   const { user, loading } = useAuth();
   const [showSplash, setShowSplash] = useState(true);
+  const [isLocked, setIsLocked] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => {
       setShowSplash(false);
+      if (localStorage.getItem('appPinEnabled') === 'true') {
+        setIsLocked(true);
+      }
     }, 2500); // Show splash for 2.5 seconds
     return () => clearTimeout(timer);
   }, []);
 
   if (showSplash || loading) {
     return <Splash />;
+  }
+
+  if (isLocked) {
+    return <PinLock onUnlock={() => setIsLocked(false)} />;
   }
 
   return (

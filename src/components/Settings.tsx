@@ -1,16 +1,24 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Save, Bell, Shield, Palette, Cloud, Smartphone } from 'lucide-react';
+import { Save, Bell, Shield, Palette, Cloud, Smartphone, Check } from 'lucide-react';
 
 export function Settings() {
   const [activeTab, setActiveTab] = useState('general');
   const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [pinEnabled, setPinEnabled] = useState(localStorage.getItem('appPinEnabled') === 'true');
+  const [pin, setPin] = useState(localStorage.getItem('appPin') || '');
 
   const handleSave = () => {
     setIsSaving(true);
+    localStorage.setItem('appPinEnabled', pinEnabled.toString());
+    if (pinEnabled && pin) {
+      localStorage.setItem('appPin', pin);
+    }
     setTimeout(() => {
       setIsSaving(false);
-      alert('Settings saved successfully!');
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
     }, 800);
   };
 
@@ -23,7 +31,18 @@ export function Settings() {
   ];
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
+    <div className="space-y-6 max-w-5xl mx-auto relative">
+      {saveSuccess && (
+        <motion.div 
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -20 }}
+          className="absolute top-0 left-1/2 -translate-x-1/2 bg-emerald-500 text-white px-4 py-2 rounded-xl shadow-lg flex items-center gap-2 z-50"
+        >
+          <Check size={18} />
+          <span className="font-medium">Settings saved successfully!</span>
+        </motion.div>
+      )}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Settings</h1>
         <button 
@@ -123,14 +142,33 @@ export function Settings() {
                       </div>
                       <div>
                         <p className="font-medium text-slate-900 dark:text-white">App Lock</p>
-                        <p className="text-sm text-slate-500 dark:text-slate-400">Require PIN or Biometrics to open app</p>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">Require PIN to open app</p>
                       </div>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
-                      <input type="checkbox" className="sr-only peer" defaultChecked />
+                      <input 
+                        type="checkbox" 
+                        className="sr-only peer" 
+                        checked={pinEnabled}
+                        onChange={(e) => setPinEnabled(e.target.checked)}
+                      />
                       <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 dark:peer-focus:ring-indigo-800 rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-slate-600 peer-checked:bg-indigo-600"></div>
                     </label>
                   </div>
+
+                  {pinEnabled && (
+                    <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700">
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Set 4-Digit PIN</label>
+                      <input 
+                        type="password" 
+                        maxLength={4}
+                        value={pin}
+                        onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
+                        placeholder="Enter 4-digit PIN"
+                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-xl bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                      />
+                    </div>
+                  )}
 
                   <div className="flex items-center justify-between p-4 rounded-xl border border-slate-200 dark:border-slate-700">
                     <div className="flex items-center gap-4">
