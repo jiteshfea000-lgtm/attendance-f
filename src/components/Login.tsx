@@ -9,10 +9,22 @@ export function Login() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
   const handleGoogleLogin = async () => {
-    await loginWithGoogle();
-    navigate('/');
+    try {
+      setError(null);
+      await loginWithGoogle();
+      // Only navigate if login was successful
+      navigate('/');
+    } catch (error: any) {
+      console.error('Login failed:', error);
+      if (error.code === 'auth/unauthorized-domain') {
+        setError('This domain is not authorized for Google Sign-In. Please add it to Firebase Console.');
+      } else {
+        setError('Failed to sign in with Google. Please try again.');
+      }
+    }
   };
 
   return (
@@ -32,6 +44,11 @@ export function Login() {
         </div>
 
         <div className="p-8">
+          {error && (
+            <div className="mb-4 p-3 bg-red-100 border border-red-200 text-red-700 rounded-xl text-sm">
+              {error}
+            </div>
+          )}
           <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
             <div>
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Email</label>
